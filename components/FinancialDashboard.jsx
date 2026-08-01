@@ -1,6 +1,8 @@
 'use client';
+import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { Wallet, TrendingUp, TrendingDown, RefreshCw, CheckCircle2, ArrowUpRight, ArrowDownRight, Layers } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, RefreshCw, CheckCircle2, ArrowUpRight, ArrowDownRight, Layers, Sparkles, ShieldCheck, Target, AlertTriangle, Download } from 'lucide-react';
+import BudgetGoalManager from '@/components/BudgetGoalManager';
 
 const COLORS = ['#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#f43f5e'];
 
@@ -9,6 +11,41 @@ const formatIDR = (val) => {
 };
 
 export default function FinancialDashboard({ summary, transactions, onSync }) {
+  const [budgets, setBudgets] = useState([]);
+  const [goals, setGoals] = useState([]);
+
+  useEffect(() => {
+    fetchBudgetsAndGoals();
+  }, [transactions]);
+
+  const fetchBudgetsAndGoals = async () => {
+    try {
+      const [resB, resG] = await Promise.all([
+        fetch('/api/budgets'),
+        fetch('/api/goals')
+      ]);
+      const dataB = await resB.json();
+      const dataG = await resG.json();
+      if (dataB.success) setBudgets(dataB.budgets || []);
+      if (dataG.success) setGoals(dataG.goals || []);
+    } catch (e) {
+      console.warn('Error fetching budgets/goals:', e);
+    }
+  };
+
+  // Calculate 50/30/20 Allocation based on total income
+  const totalIncome = summary.totalIncome || 0;
+  const totalExpense = summary.totalExpense || 0;
+  const netSavings = Math.max(0, totalIncome - totalExpense);
+
+  const idealNeeds = totalIncome * 0.5;
+  const idealWants = totalIncome * 0.3;
+  const idealSavings = totalIncome * 0.2;
+
+  const savingsRate = totalIncome > 0 ? ((netSavings / totalIncome) * 100).toFixed(0) : 0;
+  const healthStatus = savingsRate >= 20 ? 'SEHAT' : savingsRate >= 10 ? 'CUKUP' : 'PERLU PERHATIAN';
+  const healthColor = savingsRate >= 20 ? 'emerald' : savingsRate >= 10 ? 'amber' : 'rose';
+
   // Aggregate expenses by category for Pie Chart
   const expenseByCategory = transactions
     .filter((t) => t.type === 'EXPENSE')
@@ -96,19 +133,21 @@ export default function FinancialDashboard({ summary, transactions, onSync }) {
           </div>
         </div>
 
-        {/* Card 4: Google Sheets Sync */}
+        {/* Card 4: Google Sheets Sync & Ekspor CSV */}
         <div className="glass-panel glass-panel-hover p-5 rounded-2xl flex flex-col justify-between relative overflow-hidden group">
           <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-teal-500/10 rounded-full blur-xl group-hover:bg-teal-500/20 transition-all" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Google Sheets Sync</span>
-            <button
-              onClick={onSync}
-              title="Sinkronkan Sekarang"
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition active:scale-95 flex items-center gap-1.5 text-xs"
-            >
-              <RefreshCw size={14} />
-              <span>Sync</span>
-            </button>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Google Sheets & CSV</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={onSync}
+                title="Sinkronkan Sekarang"
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition active:scale-95 flex items-center gap-1 text-xs"
+              >
+                <RefreshCw size={13} />
+                <span>Sync</span>
+              </button>
+            </div>
           </div>
           <div className="mt-3">
             <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
@@ -119,6 +158,90 @@ export default function FinancialDashboard({ summary, transactions, onSync }) {
           </div>
         </div>
       </div>
+
+      {/* GEMMA AI FINANCIAL PLANNER & 50/30/20 WIDGET */}
+      <div className="glass-panel p-6 rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-950/40 via-slate-900/60 to-slate-950/80 relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+              <Sparkles size={24} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-white">Gemma AI Financial Planner & Advisor</h3>
+                <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full">
+                  Aturan 50/30/20
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">Analisis alokasi pemasukan & proyeksi tabungan otonom powered by Gemma 4</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold ${
+              healthColor === 'emerald' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' :
+              healthColor === 'amber' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
+              'bg-rose-500/15 text-rose-400 border-rose-500/30'
+            }`}>
+              <ShieldCheck size={16} />
+              <span>Status Keuangan: {healthStatus} ({savingsRate}% Tabungan)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 50/30/20 Breakdown Bars */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+          {/* Needs (50%) */}
+          <div className="bg-slate-900/70 p-4 rounded-xl border border-slate-800 space-y-2">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-blue-400">50% Kebutuhan (Needs)</span>
+              <span className="text-slate-400">Ideal: {formatIDR(idealNeeds)}</span>
+            </div>
+            <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+              <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.min(100, (totalExpense / (idealNeeds || 1)) * 100)}%` }} />
+            </div>
+            <p className="text-[11px] text-slate-400">Tagihan, bahan makanan, sewa & transportasi pokok.</p>
+          </div>
+
+          {/* Wants (30%) */}
+          <div className="bg-slate-900/70 p-4 rounded-xl border border-slate-800 space-y-2">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-purple-400">30% Keinginan (Wants)</span>
+              <span className="text-slate-400">Ideal: {formatIDR(idealWants)}</span>
+            </div>
+            <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+              <div className="bg-purple-500 h-full rounded-full" style={{ width: `${Math.min(100, (totalExpense / (idealWants || 1)) * 50)}%` }} />
+            </div>
+            <p className="text-[11px] text-slate-400">Hiburan, belanja barang impian, jalan-jalan.</p>
+          </div>
+
+          {/* Savings (20%) */}
+          <div className="bg-slate-900/70 p-4 rounded-xl border border-slate-800 space-y-2">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-emerald-400">20% Tabungan (Savings)</span>
+              <span className="text-slate-400">Target: {formatIDR(idealSavings)}</span>
+            </div>
+            <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, (netSavings / (idealSavings || 1)) * 100)}%` }} />
+            </div>
+            <p className="text-[11px] text-slate-400">Dana darurat, investasi & pencapaian masa depan.</p>
+          </div>
+        </div>
+
+        {/* Cashflow Forecast Projections */}
+        <div className="mt-5 pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-slate-300">
+          <div className="flex items-center gap-2">
+            <Target size={16} className="text-indigo-400" />
+            <span><strong>Proyeksi Cash Flow 6 Bulan:</strong> Estimasi akumulasi tabungan sebesar <strong>{formatIDR(netSavings * 6)}</strong>.</span>
+          </div>
+          <span className="text-[11px] text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-lg border border-indigo-500/20">
+            Tanya Gemma Chatbot untuk menyusun anggaran detail!
+          </span>
+        </div>
+      </div>
+
+      {/* BUDGET & SAVINGS GOALS MANAGER */}
+      <BudgetGoalManager onUpdate={onSync} />
 
       {/* Financial Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -199,4 +322,3 @@ export default function FinancialDashboard({ summary, transactions, onSync }) {
     </div>
   );
 }
-

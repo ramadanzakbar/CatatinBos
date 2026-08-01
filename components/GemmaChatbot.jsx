@@ -1,10 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { Send, Image as ImageIcon, Bot, Loader2, Sparkles, User, FileText, CheckCircle2 } from 'lucide-react';
+import { Send, Image as ImageIcon, Bot, Loader2, Sparkles, User, FileText, CheckCircle2, Lightbulb, PieChart, Target, X } from 'lucide-react';
 
-export default function GemmaChatbot({ onTransactionAdded }) {
+export default function GemmaChatbot({ onTransactionAdded, onClose }) {
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Halo! Saya Asisten Gemma 4 AI. Kirim pesan seperti "Catat makan siang 35rb" atau unggah foto struk/nota belanja untuk dicatat otomatis.' }
+    { role: 'assistant', text: 'Halo! Saya Gemma 4 AI Financial Planner & Personal Wealth Advisor 💡\n\nSaya tidak hanya mencatat transaksi atau membaca struk belanja, tetapi juga dapat menganalisis kesehatan keuangan Anda berbasis aturan 50/30/20, menetapkan pagu anggaran, dan memproyeksikan saldo tabungan.' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,13 +21,14 @@ export default function GemmaChatbot({ onTransactionAdded }) {
     }
   };
 
-  const handleSend = async () => {
-    if (!input && !selectedImage) return;
+  const handleSendPrompt = async (promptText, imagePayload = selectedImage) => {
+    const textToSend = promptText || input;
+    if (!textToSend && !imagePayload) return;
 
-    const userMsg = { role: 'user', text: input, image: selectedImage };
+    const userMsg = { role: 'user', text: textToSend, image: imagePayload };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
-    const currentImg = selectedImage;
+    const currentImg = imagePayload;
     setSelectedImage(null);
     setLoading(true);
 
@@ -53,7 +54,7 @@ export default function GemmaChatbot({ onTransactionAdded }) {
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-3xl flex flex-col h-full overflow-hidden shadow-2xl">
+    <div className="bg-slate-900/90 border border-slate-800 rounded-3xl flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-xl">
       {/* Chat Header */}
       <div className="p-4 bg-slate-800/60 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center space-x-3">
@@ -67,10 +68,19 @@ export default function GemmaChatbot({ onTransactionAdded }) {
             </h3>
             <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Google ADK Tool Calling Active
+              Autonomous Tool Calling Active
             </p>
           </div>
         </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition border border-slate-700 lg:hidden"
+            aria-label="Tutup Chat"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Messages List */}
@@ -86,7 +96,7 @@ export default function GemmaChatbot({ onTransactionAdded }) {
             </div>
 
             <div
-              className={`max-w-[82%] rounded-2xl p-3.5 text-xs leading-relaxed ${
+              className={`max-w-[85%] rounded-2xl p-3.5 text-xs leading-relaxed ${
                 m.role === 'user'
                   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md rounded-tr-xs'
                   : 'bg-slate-800/90 text-slate-200 border border-slate-700/60 shadow-sm rounded-tl-xs'
@@ -110,10 +120,37 @@ export default function GemmaChatbot({ onTransactionAdded }) {
             </div>
             <div className="bg-slate-800/90 text-slate-300 border border-slate-700/60 rounded-2xl rounded-tl-xs p-3 text-xs flex items-center space-x-2.5">
               <Loader2 className="animate-spin text-blue-400" size={15} />
-              <span className="animate-pulse">Gemma 4 sedang memproses & memanggil Tool Calling...</span>
+              <span className="animate-pulse">Gemma 4 menganalisis & memanggil Tool Calling...</span>
             </div>
           </div>
         )}
+      </div>
+
+      {/* Quick Action Prompt Chips */}
+      <div className="px-3 py-2 bg-slate-950/60 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar text-slate-300 text-[11px]">
+        <button
+          onClick={() => handleSendPrompt('Analisis kesehatan keuanganku dan alokasi 50/30/20')}
+          className="flex items-center gap-1.5 bg-slate-800/90 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700 hover:border-indigo-500/50 text-indigo-300 transition shrink-0"
+        >
+          <Lightbulb size={13} className="text-amber-400" />
+          <span>Analisis Kesehatan</span>
+        </button>
+
+        <button
+          onClick={() => handleSendPrompt('Atur pagu anggaran kategori Makanan sebesar 1.500.000')}
+          className="flex items-center gap-1.5 bg-slate-800/90 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700 hover:border-blue-500/50 text-blue-300 transition shrink-0"
+        >
+          <PieChart size={13} className="text-blue-400" />
+          <span>Set Budget Makanan</span>
+        </button>
+
+        <button
+          onClick={() => handleSendPrompt('Hitung proyeksi cash flow dan tabunganku untuk 6 bulan ke depan')}
+          className="flex items-center gap-1.5 bg-slate-800/90 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700 hover:border-emerald-500/50 text-emerald-300 transition shrink-0"
+        >
+          <Target size={13} className="text-emerald-400" />
+          <span>Forecast 6 Bulan</span>
+        </button>
       </div>
 
       {/* Upload Preview Badge */}
@@ -142,13 +179,13 @@ export default function GemmaChatbot({ onTransactionAdded }) {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Tanya atau catat transaksi (misal: Catat makan 35rb)..."
+          onKeyDown={(e) => e.key === 'Enter' && handleSendPrompt(input)}
+          placeholder="Tanya analisis atau catat transaksi (misal: Catat makan 35rb)..."
           className="flex-1 bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
         />
 
         <button
-          onClick={handleSend}
+          onClick={() => handleSendPrompt(input)}
           disabled={loading}
           className="p-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl transition shadow-md shadow-blue-500/20 active:scale-95 disabled:opacity-50"
         >
@@ -158,4 +195,3 @@ export default function GemmaChatbot({ onTransactionAdded }) {
     </div>
   );
 }
-

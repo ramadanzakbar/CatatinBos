@@ -15,7 +15,7 @@ model Transaction {
   amount      Float
   category    String
   note        String?
-  source      String   @default("WEB") // WEB | CHATBOT | GOOGLE_SHEETS
+  source      String   @default("WEB") // WEB | CHATBOT | GOOGLE_SHEETS | SPLIT_BILL
   sheetRowId  Int?     // Row index in Google Sheet for 2-way sync
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -28,4 +28,35 @@ model SyncLog {
   direction    String   // DB_TO_SHEET | SHEET_TO_DB
   affectedRows Int
   errorMessage String?
+}
+
+model Budget {
+  id          String   @id @default(uuid())
+  category    String   @unique
+  limitAmount Float
+  monthYear   String   @default("CURRENT") // e.g. 2026-08 or CURRENT
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Goal {
+  id            String    @id @default(uuid())
+  name          String
+  targetAmount  Float
+  currentAmount Float     @default(0)
+  deadline      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model SplitBill {
+  id             String   @id @default(uuid())
+  title          String
+  totalAmount    Float
+  taxPercent     Float    @default(0)
+  servicePercent Float    @default(0)
+  paymentDetails String?
+  participants   String   // JSON formatted string [{ name, phone, amount, paid }]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

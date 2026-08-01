@@ -13,12 +13,15 @@ This skill governs the integration of Gemma 4 26B A4B IT Function Calling (Tool 
   - `note` (string, optional): Description or detail.
   - `date` (string, optional): ISO date string.
 
-### 2. `sync_to_google_sheets`
+### 2. `get_financial_summary`
+- **Description**: Query aggregated financial data (total income, total expense, net balance, transaction count) to act as a Financial Planner and offer budgeting advice.
+- **Parameters**:
+  - `category` (string, optional): Filter analytics by specific category.
+
+### 3. `sync_to_google_sheets`
 - **Description**: Trigger two-way synchronization between SQLite database and Google Sheets.
 
-### 3. `get_financial_summary`
-- **Description**: Retrieve aggregated transaction summary for reports.
-
-## Visualization Requirements
-- Visual charts (Recharts) render in the primary Dashboard component outside the Chatbot sidebar/overlay.
-- Real-time updates trigger upon tool calling completion.
+## Planner Capabilities & Visualization Requirements
+- **Financial Planner Mode**: Gemma 4 uses `get_financial_summary` tool calling to analyze current spending habits and recommend budgets or savings targets.
+- **Visual Charts**: Recharts render dynamically in the primary Dashboard component outside the Chatbot slide-over drawer.
+- Real-time updates trigger automatically upon completion of transaction mutations or sync operations.
