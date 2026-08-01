@@ -106,9 +106,9 @@ MYSQL_USER_PASS="${MYSQL_PASSWORD:-CatatinUserPass_2026}"
 gcloud sql users create "${MYSQL_USER}" --instance="${SQL_INSTANCE_NAME}" --password="${MYSQL_USER_PASS}" 2>/dev/null || \
 gcloud sql users set-password "${MYSQL_USER}" --instance="${SQL_INSTANCE_NAME}" --password="${MYSQL_USER_PASS}"
 
-# Socket-based DATABASE_URL for Cloud Run -> Cloud SQL Unix socket
+# Database URL for Cloud Run -> Cloud SQL MySQL
 CONNECTION_NAME="${GCP_PROJECT_ID}:${GCP_REGION}:${SQL_INSTANCE_NAME}"
-CLOUD_SQL_DB_URL="mysql://${MYSQL_USER}:${MYSQL_USER_PASS}@localhost/${MYSQL_DB_NAME}?socket=/cloudsql/${CONNECTION_NAME}"
+CLOUD_SQL_DB_URL="mysql://${MYSQL_USER}:${MYSQL_USER_PASS}@34.128.125.53:3306/${MYSQL_DB_NAME}"
 
 # 7. Ensure Secrets in Secret Manager
 create_or_update_secret() {
@@ -134,16 +134,22 @@ create_or_update_secret "catatin-google-client-email" "${GOOGLE_CLIENT_EMAIL}"
 create_or_update_secret "catatin-google-private-key" "${GOOGLE_PRIVATE_KEY}"
 create_or_update_secret "catatin-google-sheet-id" "${GOOGLE_SPREADSHEET_ID}"
 
-# Grant Secret Manager Secret Accessor role to Cloud Run default service account
+# Grant Secret Manager Secret Accessor role & Vertex AI role to Cloud Run default service account
 PROJECT_NUMBER=$(gcloud projects describe "${GCP_PROJECT_ID}" --format="value(projectNumber)")
 COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 
-echo "🔐 Granting secret access permissions to Service Account ${COMPUTE_SA}..."
-for SECRET in catatin-db-url catatin-gemma-key catatin-google-client-email catatin-google-private-key catatin-google-sheet-id; do
-    gcloud secrets add-iam-policy-binding "$SECRET" \
-        --member="serviceAccount:${COMPUTE_SA}" \
-        --role="roles/secretmanager.secretAccessor" --quiet >/dev/null 2>&1 || true
-done
+echo "🔐 Granting permissions to Service Account ${COMPUTE_SA}..."
+(
+  for SECRET in catatin-db-url catatin-gemma-key catatin-google-client-email catatin-google-private-key catatin-google-sheet-id; do
+      gcloud secrets add-iam-policy-binding "$SECRET" \
+          --member="serviceAccount:${COMPUTE_SA}" \
+          --role="roles/secretmanager.secretAccessor" --quiet >/dev/null 2>&1 &
+  done
+  gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
+      --member="serviceAccount:${COMPUTE_SA}" \
+      --role="roles/aiplatform.user" --quiet >/dev/null 2>&1 &
+  wait
+)
 
 # 8. Build Container Image via Cloud Build
 IMAGE_TAG="gcr.io/${GCP_PROJECT_ID}/${SERVICE_NAME}:latest"

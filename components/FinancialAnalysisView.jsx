@@ -1,43 +1,78 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Sparkles, ShieldCheck, TrendingUp, AlertTriangle, Lightbulb, CheckCircle2, ArrowRight, BarChart3, LineChart, Target, DollarSign } from 'lucide-react';
+import {
+  Sparkles,
+  ShieldCheck,
+  TrendingUp,
+  AlertTriangle,
+  Lightbulb,
+  CheckCircle2,
+  BarChart3,
+  LineChart,
+  Target,
+  RefreshCw,
+  Loader2
+} from 'lucide-react';
 import { ResponsiveContainer, LineChart as ReLineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 const formatIDR = (val) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val || 0);
 };
 
-export default function FinancialAnalysisView({ summary, transactions }) {
-  const totalIncome = summary.totalIncome || 0;
-  const totalExpense = summary.totalExpense || 0;
-  const netSavings = Math.max(0, totalIncome - totalExpense);
+export default function FinancialAnalysisView() {
+  const [analysisData, setAnalysisData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const idealNeeds = totalIncome * 0.5;
-  const idealWants = totalIncome * 0.3;
-  const idealSavings = totalIncome * 0.2;
+  const fetchAnalysisData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch('/api/analysis');
+      const result = await res.json();
+      if (result.success && result.data) {
+        setAnalysisData(result.data);
+      } else {
+        setError(result.error || 'Gagal mengambil data analisis dari server');
+      }
+    } catch (e) {
+      setError('Terjadi kesalahan koneksi sistem: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const savingsRate = totalIncome > 0 ? ((netSavings / totalIncome) * 100).toFixed(1) : 0;
-  const healthScore = Math.min(100, Math.round(Number(savingsRate) * 3 + 25));
+  useEffect(() => {
+    fetchAnalysisData();
+  }, []);
 
-  // Category Aggregation
-  const expenseByCategory = transactions
-    .filter((t) => t.type === 'EXPENSE')
-    .reduce((acc, t) => {
-      acc[t.category] = (acc[t.category] || 0) + t.amount;
-      return acc;
-    }, {});
+  if (loading) {
+    return (
+      <div className="glass-panel p-12 rounded-3xl border border-slate-800 flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="animate-spin text-blue-400" size={32} />
+        <p className="text-xs text-slate-400 font-medium animate-pulse">
+          Gemma 4 AI sedang mengalkulasi indikator 50/30/20 dari database...
+        </p>
+      </div>
+    );
+  }
 
-  const topExpenseCategory = Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1])[0] || ['Lainnya', 0];
+  if (error || !analysisData) {
+    return (
+      <div className="glass-panel p-8 rounded-3xl border border-rose-500/30 text-center space-y-4">
+        <AlertTriangle className="mx-auto text-rose-400" size={32} />
+        <p className="text-xs text-rose-300 font-semibold">{error || 'Data analisis tidak tersedia'}</p>
+        <button
+          onClick={fetchAnalysisData}
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-2 border border-slate-700 transition"
+        >
+          <RefreshCw size={14} /> Coba Lagi
+        </button>
+      </div>
+    );
+  }
 
-  // 12-Month Projection Data
-  const forecastData = Array.from({ length: 12 }, (_, i) => {
-    const month = i + 1;
-    return {
-      month: `Bulan ${month}`,
-      Saldo: Math.round(netSavings * month),
-      Target: Math.round(idealSavings * month),
-    };
-  });
+  const { summary, rule503020, topExpenseCategory, primaryGoal, forecastData } = analysisData;
 
   return (
     <div className="space-y-6">
@@ -48,10 +83,17 @@ export default function FinancialAnalysisView({ summary, transactions }) {
             <span className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1 shadow-md">
               <Sparkles size={12} /> Gemma 4 Financial Intelligence Report
             </span>
+            <button
+              onClick={fetchAnalysisData}
+              className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-white transition"
+              title="Refresh Analisis Backend"
+            >
+              <RefreshCw size={12} />
+            </button>
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-white">Laporan & Rekomendasi Analisis Finansial</h2>
           <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-            Analisis mendalam atas kesehatan portofolio keuangan Anda berdasarkan aturan rasio ideal 50/30/20, proyeksi cash flow, serta rekomendasi penataan anggaran.
+            Analisis dinamis kesehatan portofolio keuangan Anda berdasarkan aturan rasio ideal 50/30/20, proyeksi cash flow, serta data transaksi terverifikasi dari database.
           </p>
         </div>
 
@@ -59,22 +101,24 @@ export default function FinancialAnalysisView({ summary, transactions }) {
         <div className="glass-panel p-5 rounded-2xl border border-indigo-500/40 bg-slate-900/90 text-center min-w-[200px] relative z-10 shadow-xl">
           <div className="text-xs uppercase tracking-wider font-bold text-slate-400">Skor Kesehatan Finansial</div>
           <div className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 my-1">
-            {healthScore}/100
+            {summary.healthScore}/100
           </div>
           <div className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
-            <ShieldCheck size={14} /> Rasio Tabungan {savingsRate}%
+            <ShieldCheck size={14} /> Rasio Tabungan {summary.savingsRate}%
           </div>
         </div>
       </div>
 
-      {/* SECTION 1: DETAILED 50/30/20 BUDGET RULE ANALYSIS */}
+      {/* SECTION 1: DETAILED 50/30/20 BUDGET RULE ANALYSIS (100% DYNAMIC) */}
       <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-6">
         <div className="border-b border-slate-800 pb-4 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <BarChart3 size={20} className="text-blue-400" /> Analisis Alokasi Anggaran 50/30/20
+              <BarChart3 size={20} className="text-blue-400" /> Analisis Alokasi Anggaran 50/30/20 (Real DB Data)
             </h3>
-            <p className="text-xs text-slate-400">Perbandingan alokasi pendapatan riil Anda dengan standar baku financial planning</p>
+            <p className="text-xs text-slate-400">
+              Perbandingan alokasi pendapatan riil Anda ({formatIDR(summary.totalIncome)}) dengan standar baku Financial Planning
+            </p>
           </div>
         </div>
 
@@ -83,15 +127,20 @@ export default function FinancialAnalysisView({ summary, transactions }) {
           <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-xs font-bold uppercase tracking-wider text-blue-400">50% Kebutuhan Pokok</span>
-              <span className="text-xs font-bold text-white">{formatIDR(idealNeeds)}</span>
+              <span className="text-xs font-bold text-white">{formatIDR(rule503020.needs.ideal)}</span>
             </div>
             <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden">
-              <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.min(100, (totalExpense / (idealNeeds || 1)) * 100)}%` }} />
+              <div
+                className="bg-blue-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, (rule503020.needs.actual / (rule503020.needs.ideal || 1)) * 100)}%` }}
+              />
             </div>
             <div className="text-xs text-slate-300 leading-relaxed space-y-1.5">
-              <p><strong>Status saat ini:</strong> Pengeluaran pokok tercatat <strong>{formatIDR(totalExpense)}</strong>.</p>
+              <p><strong>Pengeluaran Pokok Riil:</strong> <strong>{formatIDR(rule503020.needs.actual)}</strong>.</p>
               <p className="text-slate-400">
-                Porsi kebutuhan pokok mencakup sewa tempat tinggal, tagihan listrik & air, serta belanja pangan pokok bulanan.
+                {rule503020.needs.actual <= rule503020.needs.ideal
+                  ? 'Sangat baik! Pengeluaran pokok (makan, sewa, tagihan, bensin) berada di bawah batas ideal 50%.'
+                  : 'Perhatian: Pengeluaran pokok melebihi batas ideal 50%. Evaluasi tagihan bulanan Anda.'}
               </p>
             </div>
           </div>
@@ -100,15 +149,20 @@ export default function FinancialAnalysisView({ summary, transactions }) {
           <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-xs font-bold uppercase tracking-wider text-purple-400">30% Keinginan (Wants)</span>
-              <span className="text-xs font-bold text-white">{formatIDR(idealWants)}</span>
+              <span className="text-xs font-bold text-white">{formatIDR(rule503020.wants.ideal)}</span>
             </div>
             <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden">
-              <div className="bg-purple-500 h-full rounded-full" style={{ width: `${Math.min(100, (totalExpense / (idealWants || 1)) * 50)}%` }} />
+              <div
+                className="bg-purple-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, (rule503020.wants.actual / (rule503020.wants.ideal || 1)) * 100)}%` }}
+              />
             </div>
             <div className="text-xs text-slate-300 leading-relaxed space-y-1.5">
-              <p><strong>Status saat ini:</strong> Alokasi gaya hidup terkendali baik.</p>
+              <p><strong>Gaya Hidup Riil:</strong> <strong>{formatIDR(rule503020.wants.actual)}</strong>.</p>
               <p className="text-slate-400">
-                Pengeluaran seperti hiburan, belanja pakaian, dan makan luar disarankan tidak melebihi {formatIDR(idealWants)} per bulan.
+                {rule503020.wants.actual <= rule503020.wants.ideal
+                  ? 'Gaya hidup (hiburan, belanja hobi) terkendali sangat baik di bawah batas 30%.'
+                  : 'Peringatan: Porsi belanja non-esensial atau hiburan mendekati/melebihi batas 30%.'}
               </p>
             </div>
           </div>
@@ -117,30 +171,33 @@ export default function FinancialAnalysisView({ summary, transactions }) {
           <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">20% Tabungan & Investasi</span>
-              <span className="text-xs font-bold text-white">{formatIDR(idealSavings)}</span>
+              <span className="text-xs font-bold text-white">{formatIDR(rule503020.savings.ideal)}</span>
             </div>
             <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, (netSavings / (idealSavings || 1)) * 100)}%` }} />
+              <div
+                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, (summary.netSavings / (rule503020.savings.ideal || 1)) * 100)}%` }}
+              />
             </div>
             <div className="text-xs text-slate-300 leading-relaxed space-y-1.5">
-              <p><strong>Status saat ini:</strong> Tabungan bersih bulanan <strong>{formatIDR(netSavings)}</strong> ({savingsRate}%).</p>
+              <p><strong>Tabungan Bersih Riil:</strong> <strong>{formatIDR(summary.netSavings)}</strong> ({summary.savingsRate}%).</p>
               <p className="text-slate-400">
-                {Number(savingsRate) >= 20
-                  ? 'Sangat baik! Anda telah memenuhi ambang batas aman 20% untuk pertumbuhan kekayaan bersih.'
-                  : 'Pertimbangkan untuk mengurangi porsi pengeluaran non-esensial untuk meningkatkan rasio tabungan.'}
+                {Number(summary.savingsRate) >= 20
+                  ? 'Sangat luar biasa! Anda memenuhi ambang batas aman 20% untuk pertumbuhan tabungan bersih.'
+                  : 'Tingkatkan rasio tabungan dengan menekan pengeluaran kategori non-esensial.'}
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* SECTION 2: AI NARRATIVE RECOMMENDATION CARDS (GEMMA FINANCIAL ADVISORY) */}
+      {/* SECTION 2: AI NARRATIVE RECOMMENDATION CARDS (GEMMA FINANCIAL ADVISORY - DYNAMIC) */}
       <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
         <div className="border-b border-slate-800 pb-4">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <Lightbulb size={20} className="text-amber-400" /> Rekomendasi Strategis Gemma 4 AI
           </h3>
-          <p className="text-xs text-slate-400">Langkah nyata & saran otomatis untuk mengoptimalkan kesehatan finansial Anda</p>
+          <p className="text-xs text-slate-400">Langkah nyata & saran otomatis berbasis data transaksi database Catatin</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -150,37 +207,37 @@ export default function FinancialAnalysisView({ summary, transactions }) {
               <CheckCircle2 size={16} /> Optimasi Kategori Pengeluaran Terbesar
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Pengeluaran terbesar Anda saat ini berada pada kategori <strong>"{topExpenseCategory[0]}"</strong> sebesar <strong>{formatIDR(topExpenseCategory[1])}</strong>. Disarankan menetapkan pagu anggaran maksimal sebesar <strong>{formatIDR(topExpenseCategory[1] * 0.85)}</strong> pada bulan berikutnya.
+              Pengeluaran terbesar Anda berada pada kategori <strong>"{topExpenseCategory.category}"</strong> sebesar <strong>{formatIDR(topExpenseCategory.amount)}</strong>. Disarankan menetapkan pagu anggaran maksimal sebesar <strong>{formatIDR(topExpenseCategory.amount * 0.85)}</strong> pada bulan berikutnya.
             </p>
           </div>
 
           {/* Card 2 */}
           <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 hover:border-emerald-500/40 transition space-y-2">
             <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-              <TrendingUp size={16} /> Alokasi Otomatis ke Dana Darurat
+              <TrendingUp size={16} /> Alokasi Otomatis ke Tabungan & Investasi
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Dengan sisa arus kas bersih <strong>{formatIDR(netSavings)}</strong>, alokasikan minimal 60% (<strong>{formatIDR(netSavings * 0.6)}</strong>) secara otomatis ke instrumen berisiko rendah seperti Reksa Dana Pasar Uang atau Deposito.
+              Sisa arus kas bersih tercatat <strong>{formatIDR(summary.netSavings)}</strong>. Alokasikan minimal 60% (<strong>{formatIDR(summary.netSavings * 0.6)}</strong>) secara otomatis ke instrumen berisiko rendah seperti Reksa Dana Pasar Uang.
             </p>
           </div>
 
           {/* Card 3 */}
           <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 hover:border-purple-500/40 transition space-y-2">
             <div className="flex items-center gap-2 text-purple-400 font-bold text-sm">
-              <Target size={16} /> Proyeksi Waktu Pencapaian Target Impian
+              <Target size={16} /> Proyeksi Target: {primaryGoal.name}
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Berdasarkan tren tabungan bulanan riil, target impian Anda diproyeksikan dapat tercapai penuh dalam <strong>{Math.ceil(25000000 / (netSavings || 1))} bulan</strong> tanpa mengganggu arus kas operasional.
+              Target <strong>"{primaryGoal.name}"</strong> (Terkumpul {formatIDR(primaryGoal.currentAmount)} / Target {formatIDR(primaryGoal.targetAmount)}) diproyeksikan tercapai penuh dalam <strong>{primaryGoal.monthsToGoal} bulan</strong> dengan tren tabungan riil saat ini.
             </p>
           </div>
 
           {/* Card 4 */}
           <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 hover:border-amber-500/40 transition space-y-2">
             <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-              <AlertTriangle size={16} /> Peringatan Pagu & Pengawasan Biaya
+              <AlertTriangle size={16} /> Pengawasan Pagu Anggaran
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Manfaatkan integrasi <strong>Tool Calling Gemma Chatbot</strong> untuk mencatat transaksi harian instan via struk foto agar tidak ada pengeluaran kecil yang luput dari pencatatan.
+              Manfaatkan integrasi <strong>Tool Calling Gemma Chatbot</strong> untuk pencatatan transaksi harian via foto struk agar porsi 50/30/20 Anda selalu terkontrol secara real-time.
             </p>
           </div>
         </div>
@@ -191,9 +248,11 @@ export default function FinancialAnalysisView({ summary, transactions }) {
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div>
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <LineChart size={20} className="text-emerald-400" /> Proyeksi Pertumbuhan Akumulasi Saldo (12 Bulan)
+              <LineChart size={20} className="text-emerald-400" /> Proyeksi Pertumbuhan Saldo Riil (12 Bulan)
             </h3>
-            <p className="text-xs text-slate-400">Estimasi akumulasi kekayaan bersih jika konsistensi tabungan dipertahankan</p>
+            <p className="text-xs text-slate-400">
+              Estimasi akumulasi kekayaan bersih berbasis sisa tabungan bulanan ({formatIDR(summary.netSavings)}/bln)
+            </p>
           </div>
         </div>
 
