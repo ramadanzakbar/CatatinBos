@@ -1,12 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { X, Users, Share2, DollarSign, Percent, Check, Plus, Trash2, CreditCard, MessageSquare, Sparkles } from 'lucide-react';
+import { X, Users, Share2, DollarSign, Percent, Check, Plus, Trash2, CreditCard, MessageSquare, Sparkles, QrCode } from 'lucide-react';
+import QRISModal from './QRISModal';
 
 const formatIDR = (val) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val || 0);
 };
 
-export default function SplitBillModal({ isOpen, onClose, onTransactionAdded }) {
+export default function SplitBillModal({ isOpen, onClose, onTransactionAdded, initialData }) {
   const [title, setTitle] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [taxPercent, setTaxPercent] = useState('0');
@@ -19,10 +20,19 @@ export default function SplitBillModal({ isOpen, onClose, onTransactionAdded }) 
   ]);
   const [savedSplitBills, setSavedSplitBills] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [qrisModalData, setQrisModalData] = useState(null);
 
   useEffect(() => {
-    if (isOpen) fetchSplitBills();
-  }, [isOpen]);
+    if (isOpen) {
+      fetchSplitBills();
+      if (initialData) {
+        if (initialData.title) setTitle(initialData.title);
+        if (initialData.totalAmount) setTotalAmount(String(initialData.totalAmount));
+        if (initialData.taxPercent) setTaxPercent(String(initialData.taxPercent));
+        if (initialData.servicePercent) setServicePercent(String(initialData.servicePercent));
+      }
+    }
+  }, [isOpen, initialData]);
 
   const fetchSplitBills = async () => {
     try {
@@ -91,7 +101,7 @@ export default function SplitBillModal({ isOpen, onClose, onTransactionAdded }) 
     const text = `Halo ${participantName}! 👋\n\nIni rincian patungan *${title || 'Split Bill'}*:\n\n` +
       `• Total Tagihan: *${formatIDR(grandTotal)}*\n` +
       `• Bagian Kamu (${validParticipants.length} orang): *${formatIDR(amount)}*\n\n` +
-      `Silakan transfer ke:\n💳 *${paymentDetails}*\n\n` +
+      `Silakan transfer / QRIS ke:\n💳 *${paymentDetails}*\n\n` +
       `Terima kasih banyak! ✨\n_(Catatan via Catatin AI Financial Agent)_`;
     return encodeURIComponent(text);
   };
@@ -111,9 +121,9 @@ export default function SplitBillModal({ isOpen, onClose, onTransactionAdded }) 
             </div>
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                Auto Split Bill & Kirim WhatsApp <Sparkles size={16} className="text-amber-400" />
+                Auto Split Bill & WhatsApp QRIS <Sparkles size={16} className="text-amber-400" />
               </h2>
-              <p className="text-xs text-slate-400">Hitung pembagian tagihan otomatis dan bagi langsung via WhatsApp</p>
+              <p className="text-xs text-slate-400">Hitung pembagian tagihan otomatis, buat QRIS & bagi via WhatsApp</p>
             </div>
           </div>
           <button
@@ -241,16 +251,27 @@ export default function SplitBillModal({ isOpen, onClose, onTransactionAdded }) 
                   </div>
 
                   {p.name.trim() && (
-                    <a
-                      href={`https://wa.me/${p.phone ? p.phone.replace(/[^0-9]/g, '') : ''}?text=${generateWhatsAppMessage(p.name, perPersonAmount)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition flex items-center gap-1 text-[11px] font-semibold"
-                      title="Kirim Pesan WhatsApp"
-                    >
-                      <Share2 size={13} />
-                      <span className="hidden sm:inline">WA</span>
-                    </a>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setQrisModalData({ title: `${title || 'Split Bill'} - ${p.name}`, amount: perPersonAmount, paymentDetails })}
+                        className="p-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded-lg transition flex items-center gap-1 text-[11px] font-semibold"
+                        title="Tampilkan Kode QRIS Pembayaran"
+                      >
+                        <QrCode size={13} />
+                        <span className="hidden sm:inline">QRIS</span>
+                      </button>
+
+                      <a
+                        href={`https://wa.me/${p.phone ? p.phone.replace(/[^0-9]/g, '') : ''}?text=${generateWhatsAppMessage(p.name, perPersonAmount)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition flex items-center gap-1 text-[11px] font-semibold"
+                        title="Kirim Pesan WhatsApp"
+                      >
+                        <Share2 size={13} />
+                        <span className="hidden sm:inline">WA</span>
+                      </a>
+                    </div>
                   )}
 
                   {participants.length > 1 && (
@@ -276,20 +297,30 @@ export default function SplitBillModal({ isOpen, onClose, onTransactionAdded }) 
               </div>
             </div>
 
-            <button
-              onClick={handleSaveSplitBill}
-              disabled={loading || !title || !totalAmount}
-              className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl font-semibold text-xs transition shadow-lg shadow-blue-500/25 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              <Check size={16} />
-              <span>Simpan Split Bill</span>
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setQrisModalData({ title: title || 'Split Bill Catatin', amount: grandTotal, paymentDetails })}
+                className="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition flex items-center gap-1.5"
+              >
+                <QrCode size={15} />
+                <span>QRIS Code</span>
+              </button>
+
+              <button
+                onClick={handleSaveSplitBill}
+                disabled={loading || !title || !totalAmount}
+                className="flex-1 sm:flex-initial bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl font-semibold text-xs transition shadow-lg shadow-blue-500/25 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Check size={16} />
+                <span>Simpan Split Bill</span>
+              </button>
+            </div>
           </div>
 
           {/* History of Saved Split Bills */}
           {savedSplitBills.length > 0 && (
             <div className="space-y-3 pt-4 border-t border-slate-800">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Riwayat Split Bill Terimpan</h4>
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Riwayat Split Bill Tersimpan</h4>
               <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                 {savedSplitBills.map((sb) => {
                   let parsed = [];
@@ -314,15 +345,25 @@ export default function SplitBillModal({ isOpen, onClose, onTransactionAdded }) 
                         </div>
                       </div>
 
-                      <a
-                        href={`https://wa.me/?text=${waGlobalMsg}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
-                      >
-                        <MessageSquare size={13} />
-                        <span>Kirim WA</span>
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setQrisModalData({ title: sb.title, amount: sb.totalAmount, paymentDetails: sb.paymentDetails })}
+                          className="px-2.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                        >
+                          <QrCode size={13} />
+                          <span>QRIS</span>
+                        </button>
+
+                        <a
+                          href={`https://wa.me/?text=${waGlobalMsg}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                        >
+                          <MessageSquare size={13} />
+                          <span>Kirim WA</span>
+                        </a>
+                      </div>
                     </div>
                   );
                 })}
@@ -331,6 +372,17 @@ export default function SplitBillModal({ isOpen, onClose, onTransactionAdded }) 
           )}
         </div>
       </div>
+
+      {/* QRIS Modal Popup */}
+      {qrisModalData && (
+        <QRISModal
+          isOpen={!!qrisModalData}
+          onClose={() => setQrisModalData(null)}
+          title={qrisModalData.title}
+          amount={qrisModalData.amount}
+          paymentDetails={qrisModalData.paymentDetails}
+        />
+      )}
     </div>
   );
 }
