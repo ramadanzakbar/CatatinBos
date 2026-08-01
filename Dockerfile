@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for Catatin Next.js Application with SQLite & Prisma
+# Multi-stage Dockerfile for Catatin Next.js Application (MySQL Production)
 
 FROM node:18-alpine AS base
 RUN apk add --no-cache openssl libc6-compat
@@ -19,6 +19,8 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# Use MySQL Schema for Production Deployment
+RUN cp prisma/schema.mysql.prisma prisma/schema.prisma
 RUN npx prisma generate
 RUN npm run build
 
@@ -30,7 +32,6 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-ENV DATABASE_URL="file:./prisma/dev.db"
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -45,7 +46,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 RUN chmod +x ./docker-entrypoint.sh
-RUN mkdir -p /app/prisma && chown -R nextjs:nodejs /app/prisma
 
 USER nextjs
 

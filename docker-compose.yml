@@ -32,7 +32,7 @@ services:
       mysql:
         condition: service_healthy
     env_file:
-      - .env
+      - .env.prod
     environment:
       DATABASE_URL: mysql://${MYSQL_USER:-catatin_user}:${MYSQL_PASSWORD:-catatin_password}@mysql:3306/${MYSQL_DATABASE:-catatin_db}
 

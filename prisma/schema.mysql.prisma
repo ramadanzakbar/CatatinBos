@@ -1,6 +1,6 @@
-// prisma/schema.prisma (SQLite for Local Development)
+// prisma/schema.mysql.prisma (MySQL for Production Deployment with .env.prod)
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -14,7 +14,7 @@ model Transaction {
   type        String   // INCOME | EXPENSE
   amount      Float
   category    String
-  note        String?
+  note        String?  @db.Text
   source      String   @default("WEB") // WEB | CHATBOT | GOOGLE_SHEETS | SPLIT_BILL
   sheetRowId  Int?     // Row index in Google Sheet for 2-way sync
   createdAt   DateTime @default(now())
@@ -27,7 +27,7 @@ model SyncLog {
   status       String   // SUCCESS | FAILED
   direction    String   // DB_TO_SHEET | SHEET_TO_DB
   affectedRows Int
-  errorMessage String?
+  errorMessage String?  @db.Text
 }
 
 model Budget {
@@ -55,8 +55,8 @@ model SplitBill {
   totalAmount    Float
   taxPercent     Float    @default(0)
   servicePercent Float    @default(0)
-  paymentDetails String?
-  participants   String   // JSON formatted string [{ name, phone, amount, paid }]
+  paymentDetails String?  @db.Text
+  participants   String   @db.Text // JSON formatted string [{ name, phone, amount, paid }]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
