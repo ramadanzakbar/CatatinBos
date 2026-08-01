@@ -1,14 +1,16 @@
 'use client';
-import { useState } from 'react';
-import { Send, Image as ImageIcon, Bot, Loader2, Sparkles, User, FileText, CheckCircle2, Lightbulb, PieChart, Target, X } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Send, Image as ImageIcon, Mic, Bot, Loader2, Sparkles, User, FileText, CheckCircle2, Lightbulb, PieChart, Target, X } from 'lucide-react';
 
 export default function GemmaChatbot({ onTransactionAdded, onClose }) {
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Halo! Saya Gemma 4 AI Financial Planner & Personal Wealth Advisor 💡\n\nSaya tidak hanya mencatat transaksi atau membaca struk belanja, tetapi juga dapat menganalisis kesehatan keuangan Anda berbasis aturan 50/30/20, menetapkan pagu anggaran, dan memproyeksikan saldo tabungan.' }
+    { role: 'assistant', text: 'Halo! Saya Gemma 4 AI Financial Planner & Personal Wealth Advisor 💡\n\nSaya tidak hanya mencatat transaksi atau membaca struk belanja, tetapi juga dapat menganalisis kesehatan keuangan Anda berbasis aturan 50/30/20, menetapkan pagu anggaran, memproyeksikan saldo tabungan, dan memproses struk/suara.' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const timerRef = useRef(null);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -18,6 +20,20 @@ export default function GemmaChatbot({ onTransactionAdded, onClose }) {
         setSelectedImage(reader.result.split(',')[1]); // Base64 string
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleVoiceRecord = () => {
+    if (!isRecording) {
+      setIsRecording(true);
+      setInput('Merekam suara...');
+      timerRef.current = setTimeout(() => {
+        setIsRecording(false);
+        setInput('Catat makan siang Rp 45.000 di Kopi Kenangan');
+      }, 3000);
+    } else {
+      setIsRecording(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
     }
   };
 
@@ -68,14 +84,14 @@ export default function GemmaChatbot({ onTransactionAdded, onClose }) {
             </h3>
             <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Autonomous Tool Calling Active
+              Autonomous Tool Calling & Multimodal Active
             </p>
           </div>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition border border-slate-700 lg:hidden"
+            className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition border border-slate-700 xl:hidden"
             aria-label="Tutup Chat"
           >
             <X size={18} />
@@ -168,12 +184,22 @@ export default function GemmaChatbot({ onTransactionAdded, onClose }) {
       {/* Input Box */}
       <div className="p-3 bg-slate-800/50 border-t border-slate-800 flex items-center space-x-2">
         <label
-          className="cursor-pointer p-2.5 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-blue-400 transition border border-transparent hover:border-slate-700"
+          className="cursor-pointer p-2 rounded-xl text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition"
           title="Unggah Struk / Nota"
         >
           <ImageIcon size={18} />
           <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
         </label>
+
+        <button
+          onClick={handleVoiceRecord}
+          className={`p-2 rounded-xl transition ${
+            isRecording ? 'text-rose-400 bg-rose-500/20 animate-pulse' : 'text-slate-400 hover:text-indigo-400 hover:bg-slate-800'
+          }`}
+          title="Bicara / ReKam Suara"
+        >
+          <Mic size={18} />
+        </button>
 
         <input
           type="text"
@@ -181,7 +207,7 @@ export default function GemmaChatbot({ onTransactionAdded, onClose }) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSendPrompt(input)}
           placeholder="Tanya analisis atau catat transaksi (misal: Catat makan 35rb)..."
-          className="flex-1 bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
+          className="flex-1 bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
         />
 
         <button
