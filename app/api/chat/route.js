@@ -143,6 +143,7 @@ export async function POST(req) {
     });
 
     const executedTools = [];
+    const toolExplanations = [];
 
     if (agentResponse.toolCalls && agentResponse.toolCalls.length > 0) {
       for (const call of agentResponse.toolCalls) {
@@ -170,6 +171,10 @@ export async function POST(req) {
               note: createdTx.note
             }
           });
+
+          toolExplanations.push(
+            `Sip! Transaksi **${createdTx.type === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'}** sebesar **Rp ${createdTx.amount.toLocaleString('id-ID')}** untuk kategori **${createdTx.category}** (*"${createdTx.note}"*) telah berhasil saya catat ke database Catatin. 📝\n\nCatatan Anda sudah langsung ter-update di dashboard transaksi. Ada transaksi atau pencatatan lain yang ingin ditambahkan hari ini?`
+          );
         } else if (call.name === 'split_bill') {
           const args = call.args || {};
           const participants = Array.isArray(args.participants) ? args.participants : ['Budi', 'Ani'];
@@ -207,6 +212,10 @@ export async function POST(req) {
               participantsCount: participants.length
             }
           });
+
+          toolExplanations.push(
+            `Selesai! Pembagian tagihan ***${createdSplit.title}*** dengan total **Rp ${createdSplit.totalAmount.toLocaleString('id-ID')}** telah berhasil dihitung. 📲\n\nBagian patungan tiap orang (${participants.length} peserta) adalah **Rp ${Number(perPerson).toLocaleString('id-ID')}**. Silakan klik tombol hijau di atas untuk langsung membagikan rincian tagihan ini ke grup WhatsApp teman-teman Anda!`
+          );
         } else if (call.name === 'manage_savings_goal') {
           const args = call.args || {};
           const name = args.name || 'Dana Darurat';
@@ -236,6 +245,10 @@ export async function POST(req) {
               targetAmount: goal.targetAmount
             }
           });
+
+          toolExplanations.push(
+            `Luar biasa! Target tabungan **"${goal.name}"** telah berhasil diperbarui. 🎯\n\nTotal dana yang telah terkumpul saat ini adalah **Rp ${goal.currentAmount.toLocaleString('id-ID')}** dari target **Rp ${goal.targetAmount.toLocaleString('id-ID')}**. Tetap konsisten, Anda semakin dekat dengan impian Anda!`
+          );
         } else if (call.name === 'get_financial_summary') {
           const allTxs = await prisma.transaction.findMany({ orderBy: { date: 'desc' } });
           const income = allTxs.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
@@ -248,6 +261,10 @@ export async function POST(req) {
             summary: `Masuk: Rp ${income.toLocaleString('id-ID')} | Keluar: Rp ${expense.toLocaleString('id-ID')} | Saldo: Rp ${net.toLocaleString('id-ID')}`,
             details: { income, expense, net, txCount: allTxs.length }
           });
+
+          toolExplanations.push(
+            `Berikut adalah ringkasan portofolio keuangan terkini dari database Anda: 📊\n\n* **Total Pemasukan**: **Rp ${income.toLocaleString('id-ID')}**\n* **Total Pengeluaran**: **Rp ${expense.toLocaleString('id-ID')}**\n* **Sisa Saldo Bersih**: **Rp ${net.toLocaleString('id-ID')}**\n\nTotal transaksi recorded di sistem sejauh ini adalah **${allTxs.length} transaksi**.`
+          );
         } else if (call.name === 'analyze_financial_health') {
           const allTxs = await prisma.transaction.findMany();
           const income = allTxs.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
@@ -261,6 +278,10 @@ export async function POST(req) {
             summary: `Rasio Tabungan Saat Ini: ${savingsRate}%`,
             details: { savingsRate, income, expense }
           });
+
+          toolExplanations.push(
+            `Berikut adalah hasil analisis kesehatan keuangan Anda berdasarkan alokasi 50/30/20: 💡\n\n* **Rasio Tabungan saat ini**: **${savingsRate}%** dari total pemasukan\n* **Total Pemasukan**: **Rp ${income.toLocaleString('id-ID')}**\n* **Total Pengeluaran**: **Rp ${expense.toLocaleString('id-ID')}**\n\n${Number(savingsRate) >= 20 ? 'Kondisi keuangan Anda tergolong **SANGAT SEHAT**! Pertahankan alokasi minimal 20% untuk tabungan dan investasi Anda.' : 'Saran: Usahakan menekan pengeluaran non-esensial agar rasio tabungan Anda dapat mencapai batas aman minimal 20%.'}`
+          );
         } else if (call.name === 'set_budget_limit') {
           const args = call.args || {};
           const budget = await prisma.budget.upsert({
@@ -275,6 +296,10 @@ export async function POST(req) {
             summary: `Kategori ${budget.category}: Batas Rp ${budget.limitAmount.toLocaleString('id-ID')}/bln`,
             details: { category: budget.category, limitAmount: budget.limitAmount }
           });
+
+          toolExplanations.push(
+            `Siap! Batas pagu anggaran bulanan untuk kategori **${budget.category}** telah berhasil saya tetapkan sebesar **Rp ${budget.limitAmount.toLocaleString('id-ID')}/bulan**. 📊\n\nSetiap pengeluaran di kategori ini akan terus dipantau agar keuangan Anda tetap sehat. Ada kategori lain yang ingin diatur batas anggarannya?`
+          );
         } else if (call.name === 'generate_cashflow_forecast') {
           const allTxs = await prisma.transaction.findMany();
           const income = allTxs.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
@@ -287,16 +312,36 @@ export async function POST(req) {
             summary: `Estimasi Tabungan 6 Bln: Rp ${(monthlyNetSavings * 6).toLocaleString('id-ID')}`,
             details: { monthlyNetSavings, forecast3m: monthlyNetSavings * 3, forecast6m: monthlyNetSavings * 6 }
           });
+
+          toolExplanations.push(
+            `Berdasarkan kalkulasi data transaksi di database Catatin, berikut adalah proyeksi pertumbuhan cash flow dan tabungan Anda untuk 6 bulan ke depan: 📈\n\n* **Rata-rata Tabungan Bersih Bulanan**: **Rp ${monthlyNetSavings.toLocaleString('id-ID')}**\n* **Proyeksi Tabungan 3 Bulan**: **Rp ${(monthlyNetSavings * 3).toLocaleString('id-ID')}**\n* **Proyeksi Tabungan 6 Bulan**: **Rp ${(monthlyNetSavings * 6).toLocaleString('id-ID')}**\n\nKondisi keuangan Anda terlihat positif dan berada dalam jalur pertumbuhan yang baik! Tetap konsisten menjaga pengeluaran Anda.`
+          );
         }
       }
     }
+
+    // Determine final assistant reply text
+    let finalReply = agentResponse.text;
+    if (
+      !finalReply ||
+      finalReply.includes('Proyeksi & analisis keuangan Anda telah berhasil diproses oleh Gemma AI') ||
+      finalReply.includes('Transaksi & analisis Anda telah diproses oleh Gemma AI') ||
+      finalReply.includes('Proyeksi cash flow dan analisis keuangan Anda telah berhasil dihitung') ||
+      finalReply.trim() === '' ||
+      finalReply.includes('<tool_call|>')
+    ) {
+      finalReply = toolExplanations.join('\n\n');
+    } else if (toolExplanations.length > 0) {
+      finalReply = `${toolExplanations.join('\n\n')}\n\n${agentResponse.text}`;
+    }
+
 
     // 6. Save Assistant Reply to Database
     await prisma.chatMessage.create({
       data: {
         sessionId: activeSessionId,
         role: 'assistant',
-        text: agentResponse.text,
+        text: finalReply,
         executedTools: JSON.stringify(executedTools),
       },
     });
@@ -318,9 +363,10 @@ export async function POST(req) {
     return NextResponse.json({
       success: true,
       sessionId: activeSessionId,
-      reply: agentResponse.text,
+      reply: finalReply,
       executedTools: executedTools,
     });
+
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
