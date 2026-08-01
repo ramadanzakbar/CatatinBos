@@ -7,7 +7,8 @@ import SplitBillView from '@/components/SplitBillView';
 import FinancialAnalysisView from '@/components/FinancialAnalysisView';
 import GemmaChatbot from '@/components/GemmaChatbot';
 import SplitBillModal from '@/components/SplitBillModal';
-import { Plus, ListFilter, Bot, X, Sparkles, Receipt, DollarSign, Calendar, Tag, Database, Menu, Users, Download } from 'lucide-react';
+import MultimodalScanModal from '@/components/MultimodalScanModal';
+import { Plus, ListFilter, Bot, X, Sparkles, Receipt, DollarSign, Calendar, Tag, Database, Menu, Users, Download, Camera, Mic } from 'lucide-react';
 
 const formatIDR = (val) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val || 0);
@@ -24,6 +25,8 @@ export default function Home() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
   const [isSplitBillOpen, setIsSplitBillOpen] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [splitBillInitialData, setSplitBillInitialData] = useState(null);
 
   const fetchTransactions = async () => {
     try {
@@ -79,6 +82,11 @@ export default function Home() {
     document.body.removeChild(link);
   };
 
+  const handleOpenSplitBillWithData = (ocrData) => {
+    setSplitBillInitialData(ocrData);
+    setIsSplitBillOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex overflow-hidden">
       {/* COLUMN 1: LEFT SIDEBAR (Desktop sticky, Mobile drawer) */}
@@ -124,13 +132,24 @@ export default function Home() {
               Catatin <span className="text-sm">💰</span>
             </span>
           </div>
-          <button
-            onClick={() => setIsMobileChatOpen(true)}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-md"
-          >
-            <Bot size={16} />
-            <span>AI Chat</span>
-          </button>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsScanModalOpen(true)}
+              className="p-2 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30"
+              title="Scan Struk / Suara"
+            >
+              <Camera size={18} />
+            </button>
+
+            <button
+              onClick={() => setIsMobileChatOpen(true)}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-md"
+            >
+              <Bot size={16} />
+              <span>AI Chat</span>
+            </button>
+          </div>
         </header>
 
         {/* 2-COLUMN MAIN BODY GRID: CENTER CONTENT & RIGHT EMBEDDED CHATBOT */}
@@ -145,7 +164,7 @@ export default function Home() {
                   <div className="relative z-10 space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1 shadow-md">
-                        <Sparkles size={12} /> Gemma 4 AI Powered
+                        <Sparkles size={12} /> Gemma 4 AI Multimodal
                       </span>
                       <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold px-2.5 py-0.5 rounded-full">
                         Live 2-Way Sync
@@ -155,14 +174,22 @@ export default function Home() {
                       Financial Dashboard <span className="text-xl">📊</span>
                     </h1>
                     <p className="text-slate-400 text-xs sm:text-sm max-w-xl">
-                      Kelola transaksi keuangan secara real-time dengan sinkronisasi Google Sheets & analisis kecerdasan Gemma 4.
+                      Kelola transaksi keuangan secara real-time dengan OCR Struk Multimodal, Suara, Google Sheets & kecerdasan Gemma 4.
                     </p>
                   </div>
 
-                  {/* Action Buttons: Auto Split Bill & Ekspor CSV */}
-                  <div className="relative z-10 flex flex-wrap items-center gap-3">
+                  {/* Action Buttons: AI Scan Struk/Suara, Auto Split Bill & Ekspor CSV */}
+                  <div className="relative z-10 flex flex-wrap items-center gap-2.5">
                     <button
-                      onClick={() => setIsSplitBillOpen(true)}
+                      onClick={() => setIsScanModalOpen(true)}
+                      className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-lg shadow-blue-500/25 transition-all hover:scale-105 border border-blue-400/30"
+                    >
+                      <Camera size={16} />
+                      <span>Scan Struk & Suara</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setSplitBillInitialData(null); setIsSplitBillOpen(true); }}
                       className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 border border-indigo-400/20"
                     >
                       <Users size={16} />
@@ -375,11 +402,20 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Multimodal AI Scan Modal (OCR Struk & Voice) */}
+      <MultimodalScanModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
+        onTransactionAdded={fetchTransactions}
+        onOpenSplitBillWithData={handleOpenSplitBillWithData}
+      />
+
       {/* Auto Split Bill Interactive Modal */}
       <SplitBillModal
         isOpen={isSplitBillOpen}
         onClose={() => setIsSplitBillOpen(false)}
         onTransactionAdded={fetchTransactions}
+        initialData={splitBillInitialData}
       />
 
       {/* Mobile Gemma Chatbot Drawer */}
