@@ -145,7 +145,23 @@ Buka browser dan akses halaman aplikasi di **[http://localhost:3000](http://loca
 
 ---
 
+## 🌐 Production & Cloud Deployment (Docker / VPS / Cloud Run)
+
+Aplikasi Catatin dilengkapi dengan script deployment otomatis 1-click dan dukungan Docker containerization.
+
+- **1-Click Automated Deployment Script**:
+  ```bash
+  ./deploy.sh docker    # Deploy berbasis Docker Compose
+  # ATAU
+  ./deploy.sh pm2       # Deploy berbasis PM2 / Node.js
+  ```
+- **Panduan Deployment Lengkap**:  
+  Lihat [DEPLOYMENT.md](file:///Users/f/Hackathon/gdg-hackathon-cne26/catatin/DEPLOYMENT.md) untuk instruksi lengkap setup VPS Ubuntu, Environment Variables, Docker Volume Persistence, Nginx Reverse Proxy & SSL Let's Encrypt, serta Google Cloud Run.
+
+---
+
 ## 📄 Lisensi
+
 
 Project ini dilisensikan di bawah **[Apache-2.0 License](LICENSE)**.
 

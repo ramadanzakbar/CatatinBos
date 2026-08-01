@@ -23,4 +23,5 @@
    - Gemma Chatbot AI Assistant disajikan sebagai **Right Slide-over Drawer** (dapat dibuka/ditutup dari sebelah kanan layar) dengan floating trigger button di pojok kanan bawah.
 5. **Execution & Command Rules**:
    - Jangan jalankan `npm run build` jika dev server (`npm run dev`) sudah aktif/berjalan di background.
-
+6. **Cloud Deployment Execution Protocol**:
+   - Saat diperintah melakukan deployment pada cloud server / VPS pengguna, AI Agent WAJIB mengikuti tata cara dan aturan eksekusi di [DEPLOYMENT.md](file:///Users/f/Hackathon/gdg-hackathon-cne26/catatin/DEPLOYMENT.md) dengan mendahulukan eksekusi script `./deploy.sh docker` atau `./deploy.sh pm2` dan melakukan health check (`curl http://localhost:3000`).
