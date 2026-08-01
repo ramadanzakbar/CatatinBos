@@ -1,0 +1,31 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  date        DateTime @default(now())
+  type        String   // INCOME | EXPENSE
+  amount      Float
+  category    String
+  note        String?
+  source      String   @default("WEB") // WEB | CHATBOT | GOOGLE_SHEETS
+  sheetRowId  Int?     // Row index in Google Sheet for 2-way sync
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SyncLog {
+  id           String   @id @default(uuid())
+  timestamp    DateTime @default(now())
+  status       String   // SUCCESS | FAILED
+  direction    String   // DB_TO_SHEET | SHEET_TO_DB
+  affectedRows Int
+  errorMessage String?
+}

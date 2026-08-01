@@ -1,0 +1,161 @@
+'use client';
+import { useState } from 'react';
+import { Send, Image as ImageIcon, Bot, Loader2, Sparkles, User, FileText, CheckCircle2 } from 'lucide-react';
+
+export default function GemmaChatbot({ onTransactionAdded }) {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', text: 'Halo! Saya Asisten Gemma 4 AI. Kirim pesan seperti "Catat makan siang 35rb" atau unggah foto struk/nota belanja untuk dicatat otomatis.' }
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result.split(',')[1]); // Base64 string
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!input && !selectedImage) return;
+
+    const userMsg = { role: 'user', text: input, image: selectedImage };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput('');
+    const currentImg = selectedImage;
+    setSelectedImage(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMsg.text, image: currentImg }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }]);
+        if (onTransactionAdded) onTransactionAdded();
+      } else {
+        setMessages((prev) => [...prev, { role: 'assistant', text: 'Gagal memproses pesan.' }]);
+      }
+    } catch (e) {
+      setMessages((prev) => [...prev, { role: 'assistant', text: 'Terjadi kesalahan koneksi sistem.' }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-3xl flex flex-col h-full overflow-hidden shadow-2xl">
+      {/* Chat Header */}
+      <div className="p-4 bg-slate-800/60 border-b border-slate-800 flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="p-2.5 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl text-white shadow-lg shadow-blue-500/20">
+            <Bot size={20} />
+          </div>
+          <div>
+            <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
+              Gemma 4 AI Assistant
+              <Sparkles size={13} className="text-amber-400" />
+            </h3>
+            <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Google ADK Tool Calling Active
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Messages List */}
+      <div className="flex-1 p-4 overflow-y-auto space-y-4">
+        {messages.map((m, idx) => (
+          <div key={idx} className={`flex items-start space-x-2.5 ${m.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+            <div
+              className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs shrink-0 ${
+                m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+              }`}
+            >
+              {m.role === 'user' ? <User size={14} /> : <Bot size={14} />}
+            </div>
+
+            <div
+              className={`max-w-[82%] rounded-2xl p-3.5 text-xs leading-relaxed ${
+                m.role === 'user'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md rounded-tr-xs'
+                  : 'bg-slate-800/90 text-slate-200 border border-slate-700/60 shadow-sm rounded-tl-xs'
+              }`}
+            >
+              {m.image && (
+                <div className="mb-2 p-2 bg-black/20 rounded-xl flex items-center gap-2 text-[11px] text-blue-200 border border-white/10">
+                  <FileText size={14} />
+                  <span>Gambar Struk / Nota Terunggah</span>
+                </div>
+              )}
+              <p className="whitespace-pre-line">{m.text}</p>
+            </div>
+          </div>
+        ))}
+
+        {loading && (
+          <div className="flex items-start space-x-2.5">
+            <div className="w-7 h-7 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-xs shrink-0">
+              <Bot size={14} />
+            </div>
+            <div className="bg-slate-800/90 text-slate-300 border border-slate-700/60 rounded-2xl rounded-tl-xs p-3 text-xs flex items-center space-x-2.5">
+              <Loader2 className="animate-spin text-blue-400" size={15} />
+              <span className="animate-pulse">Gemma 4 sedang memproses & memanggil Tool Calling...</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Upload Preview Badge */}
+      {selectedImage && (
+        <div className="px-4 py-2 bg-blue-950/40 border-t border-slate-800 flex items-center justify-between text-xs text-blue-300">
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 size={14} className="text-blue-400" /> Struk siap diproses oleh Gemma AI
+          </span>
+          <button onClick={() => setSelectedImage(null)} className="text-slate-400 hover:text-white font-bold text-xs">
+            Batal
+          </button>
+        </div>
+      )}
+
+      {/* Input Box */}
+      <div className="p-3 bg-slate-800/50 border-t border-slate-800 flex items-center space-x-2">
+        <label
+          className="cursor-pointer p-2.5 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-blue-400 transition border border-transparent hover:border-slate-700"
+          title="Unggah Struk / Nota"
+        >
+          <ImageIcon size={18} />
+          <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+        </label>
+
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          placeholder="Tanya atau catat transaksi (misal: Catat makan 35rb)..."
+          className="flex-1 bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
+        />
+
+        <button
+          onClick={handleSend}
+          disabled={loading}
+          className="p-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl transition shadow-md shadow-blue-500/20 active:scale-95 disabled:opacity-50"
+        >
+          <Send size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
