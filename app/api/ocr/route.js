@@ -21,7 +21,8 @@ Tugasmu adalah menganalisis foto struk/nota belanja atau instruksi suara lalu me
   "note": "Catatan singkat hasil ekstraksi"
 }`;
 
-    if (process.env.GEMMA_API_KEY && (image || audio)) {
+    const hasApiKey = process.env.VERTEX_API_KEY || process.env.GEMMA_API_KEY || process.env.GEMINI_API_KEY;
+    if (hasApiKey && (image || audio)) {
       const userPrompt = promptText || (image 
         ? "Ekstrak detail struk/nota belanja ini secara presisi ke format JSON." 
         : "Ekstrak perintah suara transaksi ini ke format JSON.");

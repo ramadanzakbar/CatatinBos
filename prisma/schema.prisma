@@ -60,3 +60,23 @@ model SplitBill {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+model ChatSession {
+  id        String        @id @default(uuid())
+  title     String        @default("Sesi Chat Baru")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
+}
+
+model ChatMessage {
+  id            String      @id @default(uuid())
+  sessionId     String
+  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role          String      // "user" | "assistant"
+  text          String
+  image         String?
+  executedTools String?     // JSON string of executed tools
+  createdAt     DateTime    @default(now())
+}
+

@@ -27,7 +27,11 @@ if [ ! -f ".env.prod" ]; then
 fi
 
 # Export variables from .env.prod for script context
-export $(grep -v '^#' .env.prod | xargs)
+if [ -f ".env.prod" ]; then
+    set -a
+    . .env.prod
+    set +a
+fi
 
 # 2. Update Code from Git (if in a Git repository)
 if [ -d ".git" ]; then

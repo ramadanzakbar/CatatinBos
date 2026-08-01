@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getGoogleSheetsClient } from '@/lib/sheets';
+
 
 // API GET: Fetch all transactions & summary
 export async function GET() {
@@ -33,7 +33,7 @@ export async function GET() {
   }
 }
 
-// API POST: Add new transaction & Sync to Google Sheets
+// API POST: Add new transaction
 export async function POST(req) {
   try {
     const body = await req.json();
@@ -50,36 +50,9 @@ export async function POST(req) {
       },
     });
 
-    // Background / Immediate Sync to Google Sheets if configured
-    try {
-      const sheets = await getGoogleSheetsClient();
-      const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
-
-      if (sheets && spreadsheetId) {
-        await sheets.spreadsheets.values.append({
-          spreadsheetId,
-          range: 'Transactions!A:F',
-          valueInputOption: 'USER_ENTERED',
-          requestBody: {
-            values: [
-              [
-                newTx.id,
-                newTx.date.toISOString(),
-                newTx.type,
-                newTx.amount,
-                newTx.category,
-                newTx.note || '',
-              ],
-            ],
-          },
-        });
-      }
-    } catch (syncError) {
-      console.warn('Google Sheets sync skipped/failed:', syncError.message);
-    }
-
     return NextResponse.json({ success: true, data: newTx });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
+

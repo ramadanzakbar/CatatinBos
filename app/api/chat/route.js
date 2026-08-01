@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import { callGemmaAgent } from '@/lib/gemmaAgent';
 import { prisma } from '@/lib/prisma';
-import { getGoogleSheetsClient } from '@/lib/sheets';
 
 const toolsDeclarations = [
   {
     name: 'add_transaction',
-    description: 'Menambahkan transaksi keuangan baru (pemasukan atau pengeluaran) ke database dan Google Sheets.',
+    description: 'Menambahkan transaksi keuangan baru (pemasukan atau pengeluaran) ke database.',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -89,25 +88,61 @@ const toolsDeclarations = [
       },
     },
   },
-  {
-    name: 'sync_to_google_sheets',
-    description: 'Memicu sinkronisasi 2-arah antara SQLite lokal dan Google Sheets.',
-    parameters: { type: 'OBJECT', properties: {} },
-  },
 ];
 
 export async function POST(req) {
   try {
-    const { message, image } = await req.json();
+    const { message, image, sessionId } = await req.json();
 
-    // Call Gemma Agent via Google ADK integration
+    // 1. Ensure or find active ChatSession
+    let session;
+    if (sessionId) {
+      session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+    }
+    if (!session) {
+      session = await prisma.chatSession.findFirst({ orderBy: { updatedAt: 'desc' } });
+      if (!session) {
+        session = await prisma.chatSession.create({ data: { title: 'Sesi Chat Baru' } });
+      }
+    }
+
+    const activeSessionId = session.id;
+
+    // 2. Retrieve conversation memory (history messages)
+    const historyMessages = await prisma.chatMessage.findMany({
+      where: { sessionId: activeSessionId },
+      orderBy: { createdAt: 'asc' },
+      take: 12, // Memory context window
+    });
+
+    // 3. Save User Message to Database
+    const userText = message || 'Silakan analisis resi/catatan transaksi ini.';
+    await prisma.chatMessage.create({
+      data: {
+        sessionId: activeSessionId,
+        role: 'user',
+        text: userText,
+        image: image || null,
+      },
+    });
+
+    // 4. Construct Prompt with Conversation Memory Context
+    let memoryPrompt = userText;
+    if (historyMessages.length > 0) {
+      const historyContext = historyMessages
+        .map((m) => `${m.role === 'user' ? 'Pengguna' : 'Gemma AI'}: ${m.text}`)
+        .join('\n');
+      memoryPrompt = `Riwayat Percakapan Sebelumnya:\n${historyContext}\n\nPesan Pengguna Saat Ini: ${userText}`;
+    }
+
+    // 5. Call Gemma Agent with Memory Context
     const agentResponse = await callGemmaAgent({
-      prompt: message || 'Silakan analisis resi/catatan transaksi ini.',
+      prompt: memoryPrompt,
       imageBase64: image,
       tools: toolsDeclarations,
     });
 
-    let executedToolResult = null;
+    const executedTools = [];
 
     if (agentResponse.toolCalls && agentResponse.toolCalls.length > 0) {
       for (const call of agentResponse.toolCalls) {
@@ -123,25 +158,18 @@ export async function POST(req) {
             },
           });
 
-          // Sync to Sheets
-          try {
-            const sheets = await getGoogleSheetsClient();
-            const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
-            if (sheets && spreadsheetId) {
-              await sheets.spreadsheets.values.append({
-                spreadsheetId,
-                range: 'Transactions!A:F',
-                valueInputOption: 'USER_ENTERED',
-                requestBody: {
-                  values: [[createdTx.id, createdTx.date.toISOString(), createdTx.type, createdTx.amount, createdTx.category, createdTx.note]],
-                },
-              });
+          executedTools.push({
+            name: 'add_transaction',
+            label: 'Transaksi Ditambahkan',
+            summary: `Rp ${createdTx.amount.toLocaleString('id-ID')} (${createdTx.category})`,
+            type: createdTx.type,
+            details: {
+              amount: createdTx.amount,
+              category: createdTx.category,
+              type: createdTx.type,
+              note: createdTx.note
             }
-          } catch (e) {
-            console.warn('Sheets sync error:', e.message);
-          }
-
-          executedToolResult = `[Tool Executed: add_transaction] Berhasil menambahkan transaksi Rp ${createdTx.amount.toLocaleString('id-ID')} (${createdTx.category}).`;
+          });
         } else if (call.name === 'split_bill') {
           const args = call.args || {};
           const participants = Array.isArray(args.participants) ? args.participants : ['Budi', 'Ani'];
@@ -166,7 +194,19 @@ export async function POST(req) {
             `Halo! Ini rincian patungan *${createdSplit.title}*:\n\nTotal: Rp ${createdSplit.totalAmount.toLocaleString('id-ID')}\nBagian per orang (${participants.length} org): *Rp ${Number(perPerson).toLocaleString('id-ID')}*\n\nTransfer ke: ${createdSplit.paymentDetails}\n\nTerima kasih! 💰 (via Catatin AI)`
           );
 
-          executedToolResult = `[Tool Executed: split_bill] Berhasil menghitung Split Bill "${createdSplit.title}". Bagian per orang: Rp ${Number(perPerson).toLocaleString('id-ID')}.\n📲 WhatsApp Share Link: https://wa.me/?text=${waMsg}`;
+          executedTools.push({
+            name: 'split_bill',
+            label: 'Split Bill Berhasil',
+            summary: `${createdSplit.title} - Rp ${Number(perPerson).toLocaleString('id-ID')} / orang`,
+            actionUrl: `https://wa.me/?text=${waMsg}`,
+            actionLabel: 'Bagikan Tagihan via WhatsApp',
+            details: {
+              title: createdSplit.title,
+              totalAmount: createdSplit.totalAmount,
+              perPerson: Number(perPerson),
+              participantsCount: participants.length
+            }
+          });
         } else if (call.name === 'manage_savings_goal') {
           const args = call.args || {};
           const name = args.name || 'Dana Darurat';
@@ -186,27 +226,41 @@ export async function POST(req) {
             });
           }
 
-          executedToolResult = `[Tool Executed: manage_savings_goal] Target "${goal.name}" berhasil diperbarui! Terkumpul Rp ${goal.currentAmount.toLocaleString('id-ID')} / Target Rp ${goal.targetAmount.toLocaleString('id-ID')}.`;
+          executedTools.push({
+            name: 'manage_savings_goal',
+            label: 'Target Tabungan Diperbarui',
+            summary: `${goal.name}: Terkumpul Rp ${goal.currentAmount.toLocaleString('id-ID')} / Target Rp ${goal.targetAmount.toLocaleString('id-ID')}`,
+            details: {
+              name: goal.name,
+              currentAmount: goal.currentAmount,
+              targetAmount: goal.targetAmount
+            }
+          });
         } else if (call.name === 'get_financial_summary') {
           const allTxs = await prisma.transaction.findMany({ orderBy: { date: 'desc' } });
           const income = allTxs.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
           const expense = allTxs.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
           const net = income - expense;
 
-          executedToolResult = `[Tool Executed: get_financial_summary] Total Pemasukan: Rp ${income.toLocaleString('id-ID')}, Total Pengeluaran: Rp ${expense.toLocaleString('id-ID')}, Saldo Bersih: Rp ${net.toLocaleString('id-ID')}, Total Transaksi: ${allTxs.length}.`;
+          executedTools.push({
+            name: 'get_financial_summary',
+            label: 'Ringkasan Keuangan Dikalkulasi',
+            summary: `Masuk: Rp ${income.toLocaleString('id-ID')} | Keluar: Rp ${expense.toLocaleString('id-ID')} | Saldo: Rp ${net.toLocaleString('id-ID')}`,
+            details: { income, expense, net, txCount: allTxs.length }
+          });
         } else if (call.name === 'analyze_financial_health') {
           const allTxs = await prisma.transaction.findMany();
-          const budgets = await prisma.budget.findMany();
           const income = allTxs.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
           const expense = allTxs.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
-          
-          const idealNeeds = income * 0.5;
-          const idealWants = income * 0.3;
-          const idealSavings = income * 0.2;
           const currentSavings = Math.max(0, income - expense);
           const savingsRate = income > 0 ? ((currentSavings / income) * 100).toFixed(1) : 0;
 
-          executedToolResult = `[Tool Executed: analyze_financial_health] Rasio Tabungan: ${savingsRate}%. Alokasi 50/30/20 Idealku: Needs Rp ${idealNeeds.toLocaleString('id-ID')}, Wants Rp ${idealWants.toLocaleString('id-ID')}, Savings Rp ${idealSavings.toLocaleString('id-ID')}. Total Budgets Terdaftar: ${budgets.length}.`;
+          executedTools.push({
+            name: 'analyze_financial_health',
+            label: 'Analisis Kesehatan 50/30/20 Selesai',
+            summary: `Rasio Tabungan Saat Ini: ${savingsRate}%`,
+            details: { savingsRate, income, expense }
+          });
         } else if (call.name === 'set_budget_limit') {
           const args = call.args || {};
           const budget = await prisma.budget.upsert({
@@ -215,27 +269,61 @@ export async function POST(req) {
             create: { category: args.category, limitAmount: parseFloat(args.limitAmount || 0) },
           });
 
-          executedToolResult = `[Tool Executed: set_budget_limit] Berhasil menetapkan batas anggaran kategori ${budget.category} sebesar Rp ${budget.limitAmount.toLocaleString('id-ID')}/bulan.`;
+          executedTools.push({
+            name: 'set_budget_limit',
+            label: 'Pagu Anggaran Ditetapkan',
+            summary: `Kategori ${budget.category}: Batas Rp ${budget.limitAmount.toLocaleString('id-ID')}/bln`,
+            details: { category: budget.category, limitAmount: budget.limitAmount }
+          });
         } else if (call.name === 'generate_cashflow_forecast') {
           const allTxs = await prisma.transaction.findMany();
           const income = allTxs.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
           const expense = allTxs.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
           const monthlyNetSavings = Math.max(0, income - expense);
 
-          executedToolResult = `[Tool Executed: generate_cashflow_forecast] Sisa Tabungan Bulanan Saat Ini: Rp ${monthlyNetSavings.toLocaleString('id-ID')}. Proyeksi Saldo 3 Bulan: Rp ${(monthlyNetSavings * 3).toLocaleString('id-ID')}, Proyeksi 6 Bulan: Rp ${(monthlyNetSavings * 6).toLocaleString('id-ID')}.`;
-        } else if (call.name === 'sync_to_google_sheets') {
-          executedToolResult = `[Tool Executed: sync_to_google_sheets] Sinkronisasi 2-arah ke Google Sheets berhasil dijalankan.`;
+          executedTools.push({
+            name: 'generate_cashflow_forecast',
+            label: 'Proyeksi Cash Flow 6 Bulan',
+            summary: `Estimasi Tabungan 6 Bln: Rp ${(monthlyNetSavings * 6).toLocaleString('id-ID')}`,
+            details: { monthlyNetSavings, forecast3m: monthlyNetSavings * 3, forecast6m: monthlyNetSavings * 6 }
+          });
         }
       }
     }
 
+    // 6. Save Assistant Reply to Database
+    await prisma.chatMessage.create({
+      data: {
+        sessionId: activeSessionId,
+        role: 'assistant',
+        text: agentResponse.text,
+        executedTools: JSON.stringify(executedTools),
+      },
+    });
+
+    // 7. Auto-update Session Title if default
+    if (session.title === 'Sesi Chat Baru' && userText) {
+      const generatedTitle = userText.length > 30 ? userText.substring(0, 30) + '...' : userText;
+      await prisma.chatSession.update({
+        where: { id: activeSessionId },
+        data: { title: generatedTitle },
+      });
+    } else {
+      await prisma.chatSession.update({
+        where: { id: activeSessionId },
+        data: { updatedAt: new Date() },
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      reply: executedToolResult
-        ? `${executedToolResult}\n\n${agentResponse.text}`
-        : agentResponse.text,
+      sessionId: activeSessionId,
+      reply: agentResponse.text,
+      executedTools: executedTools,
     });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
+
+

@@ -23,6 +23,7 @@ ENV NODE_ENV=production
 RUN cp prisma/schema.mysql.prisma prisma/schema.prisma
 RUN npx prisma generate
 RUN npm run build
+RUN mkdir -p /app/public
 
 # Stage 3: Production Runner
 FROM base AS runner
